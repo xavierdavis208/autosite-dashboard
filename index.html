@@ -4,12 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AutoSite Studio — Cloud Command Center</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://tailwindcss.com"></script>
   <script src="https://jsdelivr.net"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
   <div class="max-w-6xl mx-auto space-y-6">
-    <!-- Header -->
     <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
       <div>
         <h1 class="text-2xl font-bold text-emerald-400">AutoSite Studio</h1>
@@ -27,7 +26,6 @@
       </div>
     </div>
 
-    <!-- Stats -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
         <p class="text-xs text-slate-400">Total Leads</p>
@@ -47,7 +45,6 @@
       </div>
     </div>
 
-    <!-- Add Lead Form -->
     <form onsubmit="addLead(event)" class="bg-slate-900 p-4 rounded-xl border border-slate-800 grid grid-cols-1 md:grid-cols-5 gap-3">
       <input id="bName" required placeholder="Business Name" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
       <input id="bCity" required placeholder="City" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
@@ -56,7 +53,6 @@
       <button type="submit" class="bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg px-4 py-2 text-sm">+ Add Lead</button>
     </form>
 
-    <!-- Leads Table -->
     <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
       <table class="w-full text-left text-sm">
         <thead class="bg-slate-800/60 text-slate-300">
@@ -73,7 +69,6 @@
     </div>
   </div>
 
-  <!-- Preview Modal -->
   <div id="modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50">
     <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-5xl w-full h-[85vh] flex flex-col overflow-hidden">
       <div class="flex items-center justify-between p-4 border-b border-slate-800">
@@ -93,7 +88,7 @@
   </div>
 
   <script>
-    const SUPABASE_URL = "https://qmxcgmyzqqplydhuyxve.supabase.co";
+    const SUPABASE_URL = "https://supabase.co";
     const SUPABASE_ANON_KEY = "sb_publishable_Tv1mI2D8P9PLeX-I3GbWMw_Pzog75ZY";
 
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -106,7 +101,10 @@
 
     async function loadLeads() {
       const { data, error } = await db.from("leads").select("*").order("created_at", { ascending: false });
-      if (error) return alert("Supabase error: " + error.message);
+      if (error) {
+        alert("Supabase Error: " + error.message);
+        return;
+      }
       leadsCache = data || [];
       document.getElementById("statTotal").textContent = leadsCache.length;
       document.getElementById("statReady").textContent = leadsCache.filter(l => l.status === "Preview Ready").length;
@@ -128,9 +126,10 @@
 
     async function addLead(e) {
       e.preventDefault();
-      await db.from("leads").insert([{
+      const { error } = await db.from("leads").insert([{
         business_name: bName.value, city: bCity.value, specialty: bSpec.value, email: bEmail.value
       }]);
+      if (error) return alert("Error adding lead: " + error.message);
       e.target.reset();
       loadLeads();
     }
@@ -140,29 +139,40 @@
       if (!apiKey) return alert("Please paste your Gemini API key into the top box first!");
       saveKey();
 
+      const pending = leadsCache.filter(l => !l.generated_html);
+      if (pending.length === 0) return alert("No pending leads found! Add a lead or check that your 3 sample leads loaded.");
+
       const btn = document.getElementById("runBtn");
       btn.disabled = true;
       btn.textContent = "⏳ Generating AI Previews...";
-      const pending = leadsCache.filter(l => !l.generated_html);
 
-      for (const lead of pending) {
-        const prompt = `Build a complete, modern single-file HTML5 website using Tailwind CSS CDN for '${lead.business_name}' in '${lead.city}' specializing in '${lead.specialty}'. Include a sleek hero section, 3-card service/menu section, and booking contact form. Output ONLY raw HTML starting with <!DOCTYPE html>. No markdown backticks.`;
-        const res = await fetch(`https://googleapis.com{apiKey}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-        const json = await res.json();
-        let html = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        html = html.replace(/^```html\s*/i, "").replace(/```$/i, "").trim();
+      try {
+        for (const lead of pending) {
+          const prompt = `Build a complete, modern single-file HTML5 website using Tailwind CSS CDN for '${lead.business_name}' in '${lead.city}' specializing in '${lead.specialty}'. Include a sleek hero section, 3-card service/menu section, and booking contact form. Output ONLY raw HTML starting with <!DOCTYPE html>. No markdown backticks.`;
+          const endpoint = "https://googleapis.com" + apiKey;
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+          });
+          const json = await res.json();
+          if (json.error) throw new Error(json.error.message);
 
-        const subject = `Quick website preview I built for ${lead.business_name}`;
-        const body = `Hi ${lead.business_name} team,\n\nI put together a modern mobile website preview tailored for ${lead.business_name} in ${lead.city}.\n\nIf you'd like me to connect this live to your domain today, just reply and let me know!\n\nBest,\nXavier\n(Reply "no thanks" if you'd prefer I don't follow up.)`;
+          let html = (json.candidates && json.candidates && json.candidates.content && json.candidates.content.parts.text) || "";
+          html = html.replace(/^```html\s*/i, "").replace(/```$/i, "").trim();
 
-        await db.from("leads").update({
-          generated_html: html, email_subject: subject, email_body: body, status: "Preview Ready"
-        }).eq("id", lead.id);
+          const subject = `Quick website preview I built for ${lead.business_name}`;
+          const body = `Hi ${lead.business_name} team,\n\nI put together a modern mobile website preview tailored for ${lead.business_name} in ${lead.city}.\n\nIf you'd like me to connect this live to your domain today, just reply and let me know!\n\nBest,\nXavier\n(Reply "no thanks" if you'd prefer I don't follow up.)`;
+
+          await db.from("leads").update({
+            generated_html: html, email_subject: subject, email_body: body, status: "Preview Ready"
+          }).eq("id", lead.id);
+        }
+        alert("Done! All AI previews generated.");
+      } catch (err) {
+        alert("AI Error: " + err.message);
       }
+
       btn.disabled = false;
       btn.textContent = "⚡ Generate All AI Previews";
       loadLeads();
@@ -171,15 +181,14 @@
     function openModal(id) {
       const lead = leadsCache.find(l => l.id === id);
       document.getElementById("modalTitle").textContent = lead.business_name;
-      document.getElementById("previewFrame").srcdoc = lead.generated_html;
-      document.getElementById("modalSubject").value = lead.email_subject || "";
-      document.getElementById("modalBody").value = lead.email_body || "";
-      document.getElementById("modal").classList.remove("hidden");
-      document.getElementById("modal").classList.add("flex");
-    }
-
-    function closeModal() {
-      document.getElementById("modal").classList.add("hidden");
+document.getElementById("previewFrame").srcdoc = lead.generated_html;
+document.getElementById("modalSubject").value = lead.email_subject || "";
+document.getElementById("modalBody").value = lead.email_body || "";
+document.getElementById("modal").classList.remove("hidden");
+document.getElementById("modal").classList.add("flex");
+}
+function closeModal() {
+document.getElementById("modal").classList.add("hidden");
 document.getElementById("modal").classList.remove("flex");
 }
 function copyEmail() {
@@ -187,9 +196,3 @@ navigator.clipboard.writeText(document.getElementById("modalBody").value);
 alert("Email copied!");
 }
 loadLeads();
-
-
-
-<FollowUp>
-Once you commit the full code to `index.html` and turn on **Settings → Pages → Branch: `main`**, open your live GitHub Pages URL, paste your Gemini key into the top box, and let me know if your 3 sample businesses show up!
-</FollowUp>
