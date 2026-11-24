@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AutoSite Studio — Cloud Command Center</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://jsdelivr.net"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 font-sans">
+  <div class="max-w-6xl mx-auto space-y-6">
+    <!-- Header -->
+    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+      <div>
+        <h1 class="text-2xl font-bold text-emerald-400">AutoSite Studio</h1>
+        <p class="text-sm text-slate-400">100% Cloud AI Website & Outreach Grinder</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <input type="password" id="geminiKeyInput" onchange="saveKey()" placeholder="Paste Gemini API Key here..." class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm w-56" />
+        <label class="flex items-center gap-2 bg-slate-900 border border-slate-700 px-3 py-2 rounded-lg text-sm cursor-pointer">
+          <input type="checkbox" id="practiceMode" checked class="accent-emerald-500 w-4 h-4" />
+          <span>Practice Mode</span>
+        </label>
+        <button onclick="generateAll()" id="runBtn" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm transition">
+          ⚡ Generate All AI Previews
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+        <p class="text-xs text-slate-400">Total Leads</p>
+        <p id="statTotal" class="text-2xl font-bold mt-1">0</p>
+      </div>
+      <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+        <p class="text-xs text-slate-400">Previews Ready</p>
+        <p id="statReady" class="text-2xl font-bold text-emerald-400 mt-1">0</p>
+      </div>
+      <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+        <p class="text-xs text-slate-400">Sent / Logged</p>
+        <p id="statSent" class="text-2xl font-bold text-sky-400 mt-1">0</p>
+      </div>
+      <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+        <p class="text-xs text-slate-400">Paid Deals</p>
+        <p id="statPaid" class="text-2xl font-bold text-amber-400 mt-1">0</p>
+      </div>
+    </div>
+
+    <!-- Add Lead Form -->
+    <form onsubmit="addLead(event)" class="bg-slate-900 p-4 rounded-xl border border-slate-800 grid grid-cols-1 md:grid-cols-5 gap-3">
+      <input id="bName" required placeholder="Business Name" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+      <input id="bCity" required placeholder="City" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+      <input id="bSpec" required placeholder="Specialty / Services" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+      <input id="bEmail" required type="email" placeholder="Email" class="bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm" />
+      <button type="submit" class="bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg px-4 py-2 text-sm">+ Add Lead</button>
+    </form>
+
+    <!-- Leads Table -->
+    <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-800/60 text-slate-300">
+          <tr>
+            <th class="p-3">Business</th>
+            <th class="p-3">City</th>
+            <th class="p-3">Specialty</th>
+            <th class="p-3">Status</th>
+            <th class="p-3 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="leadsTable" class="divide-y divide-slate-800"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Preview Modal -->
+  <div id="modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-5xl w-full h-[85vh] flex flex-col overflow-hidden">
+      <div class="flex items-center justify-between p-4 border-b border-slate-800">
+        <h2 id="modalTitle" class="font-bold text-lg">Preview & Email</h2>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-white px-3 py-1">✕ Close</button>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 flex-1 overflow-hidden">
+        <iframe id="previewFrame" class="w-full h-full bg-white"></iframe>
+        <div class="p-4 flex flex-col gap-3 overflow-y-auto">
+          <label class="text-xs text-slate-400">Generated Outreach Email</label>
+          <input id="modalSubject" class="bg-slate-950 border border-slate-700 rounded p-2 text-sm font-semibold" />
+          <textarea id="modalBody" rows="12" class="bg-slate-950 border border-slate-700 rounded p-2 text-sm flex-1"></textarea>
+          <button onclick="copyEmail()" class="bg-emerald-500 text-slate-950 font-semibold py-2 rounded-lg text-sm">Copy Email Text</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://qmxcgmyzqqplydhuyxve.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_Tv1mI2D8P9PLeX-I3GbWMw_Pzog75ZY";
+
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let leadsCache = [];
+
+    document.getElementById("geminiKeyInput").value = localStorage.getItem("gemini_api_key") || "";
+    function saveKey() {
+      localStorage.setItem("gemini_api_key", document.getElementById("geminiKeyInput").value.trim());
+    }
+
+    async function loadLeads() {
+      const { data, error } = await db.from("leads").select("*").order("created_at", { ascending: false });
+      if (error) return alert("Supabase error: " + error.message);
+      leadsCache = data || [];
+      document.getElementById("statTotal").textContent = leadsCache.length;
+      document.getElementById("statReady").textContent = leadsCache.filter(l => l.status === "Preview Ready").length;
+      document.getElementById("statSent").textContent = leadsCache.filter(l => l.status === "Sent").length;
+      document.getElementById("statPaid").textContent = leadsCache.filter(l => l.status === "Paid").length;
+
+      document.getElementById("leadsTable").innerHTML = leadsCache.map(l => `
+        <tr>
+          <td class="p-3 font-medium">${l.business_name}</td>
+          <td class="p-3 text-slate-400">${l.city}</td>
+          <td class="p-3 text-slate-400">${l.specialty}</td>
+          <td class="p-3"><span class="px-2 py-1 rounded text-xs bg-slate-800 text-emerald-300">${l.status}</span></td>
+          <td class="p-3 text-right space-x-2">
+            ${l.generated_html ? `<button onclick="openModal('${l.id}')" class="text-emerald-400 hover:underline text-xs">View Site & Email</button>` : `<span class="text-xs text-slate-500">Pending AI</span>`}
+          </td>
+        </tr>
+      `).join("");
+    }
+
+    async function addLead(e) {
+      e.preventDefault();
+      await db.from("leads").insert([{
+        business_name: bName.value, city: bCity.value, specialty: bSpec.value, email: bEmail.value
+      }]);
+      e.target.reset();
+      loadLeads();
+    }
+
+    async function generateAll() {
+      const apiKey = document.getElementById("geminiKeyInput").value.trim();
+      if (!apiKey) return alert("Please paste your Gemini API key into the top box first!");
+      saveKey();
+
+      const btn = document.getElementById("runBtn");
+      btn.disabled = true;
+      btn.textContent = "⏳ Generating AI Previews...";
+      const pending = leadsCache.filter(l => !l.generated_html);
+
+      for (const lead of pending) {
+        const prompt = `Build a complete, modern single-file HTML5 website using Tailwind CSS CDN for '${lead.business_name}' in '${lead.city}' specializing in '${lead.specialty}'. Include a sleek hero section, 3-card service/menu section, and booking contact form. Output ONLY raw HTML starting with <!DOCTYPE html>. No markdown backticks.`;
+        const res = await fetch(`https://googleapis.com{apiKey}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const json = await res.json();
+        let html = json.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        html = html.replace(/^```html\s*/i, "").replace(/```$/i, "").trim();
+
+        const subject = `Quick website preview I built for ${lead.business_name}`;
+        const body = `Hi ${lead.business_name} team,\n\nI put together a modern mobile website preview tailored for ${lead.business_name} in ${lead.city}.\n\nIf you'd like me to connect this live to your domain today, just reply and let me know!\n\nBest,\nXavier\n(Reply "no thanks" if you'd prefer I don't follow up.)`;
+
+        await db.from("leads").update({
+          generated_html: html, email_subject: subject, email_body: body, status: "Preview Ready"
+        }).eq("id", lead.id);
+      }
+      btn.disabled = false;
+      btn.textContent = "⚡ Generate All AI Previews";
+      loadLeads();
+    }
+
+    function openModal(id) {
+      const lead = leadsCache.find(l => l.id === id);
+      document.getElementById("modalTitle").textContent = lead.business_name;
+      document.getElementById("previewFrame").srcdoc = lead.generated_html;
+      document.getElementById("modalSubject").value = lead.email_subject || "";
+      document.getElementById("modalBody").value = lead.email_body || "";
+      document.getElementById("modal").classList.remove("hidden");
+      document.getElementById("modal").classList.add("flex");
+    }
+
+    function closeModal() {
+      document.getElementById("modal").classList.add("hidden");
+document.getElementById("modal").classList.remove("flex");
+}
+function copyEmail() {
+navigator.clipboard.writeText(document.getElementById("modalBody").value);
+alert("Email copied!");
+}
+loadLeads();
+
+
+
+<FollowUp>
+Once you commit the full code to `index.html` and turn on **Settings → Pages → Branch: `main`**, open your live GitHub Pages URL, paste your Gemini key into the top box, and let me know if your 3 sample businesses show up!
+</FollowUp>
